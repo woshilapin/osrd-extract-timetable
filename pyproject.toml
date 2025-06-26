@@ -1,0 +1,11 @@
+[project]
+name = "osrd-extract-timetable"
+version = "0.1.0"
+description = "Extract train from OSRD timetable into a new timetable"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "inquirer>=3.4.0",
+    "requests>=2.32.4",
+    "termcolor>=3.1.0",
+]
