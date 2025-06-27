@@ -65,6 +65,17 @@ def list_scenarios(
     return
 
 
+def validate_url(url: str) -> bool:
+    try:
+        session.get(url)
+        return True
+    except Exception as e:
+        raise inquirer.errors.ValidationError(
+            url,
+            "Can't connect to the API. Did you set up 'GATEWAY_TOKEN' and 'REQUESTS_CA_BUNDLE'?",
+        )
+
+
 def validate_date(s: str) -> bool:
     try:
         datetime.date.fromisoformat(s)
@@ -83,6 +94,7 @@ questions = [
             ("dev", "https://dev-osrd.reseau.sncf.fr/api"),
             ("local", "http://localhost:4000/api"),
         ],
+        validate=lambda _, answer: validate_url(answer),
     ),
     inquirer.List(
         "from_timetable_method",
@@ -95,7 +107,7 @@ questions = [
     inquirer.List(
         "from_project",
         message="Select the project where are the trains to extract",
-        choices=list(list_projects()),
+        choices=lambda _: list(list_projects()),
         ignore=lambda answers: answers["from_timetable_method"] != "scenario",
     ),
     inquirer.List(
@@ -216,17 +228,11 @@ def extract_from_train_names(
             f"{len(train_schedules)} found in the timetable",
         )
         extract_date = datetime.date.fromisoformat(answers["extraction_date"])
-        # TODO: filter train on date thanks to simulation end time
         train_schedules = [
             train_schedule
             for train_schedule in train_schedules
-            if datetime.datetime.fromisoformat(train_schedule.get("start_time"))
-            < datetime.datetime(
-                extract_date.year,
-                extract_date.month,
-                extract_date.day + 1,
-                tzinfo=datetime.timezone.utc,
-            )
+            if datetime.datetime.fromisoformat(train_schedule.get("start_time")).date()
+            == extract_date
         ]
         for train_schedule in train_schedules:
             train_schedule.pop("id")
@@ -239,18 +245,23 @@ def extract_from_train_names(
                 case 2:
                     train_schedule.update({"comfort": "HEATING"})
                 case _:
-                    print("unknown comfort value")
+                    print(
+                        colored("❌", "red"),
+                        f"unknown comfort value, ignoring the train '{train_name}'",
+                    )
+                    continue
             match train_schedule.get("constraint_distribution"):
                 case 0:
                     train_schedule.update({"constraint_distribution": "STANDARD"})
                 case 1:
                     train_schedule.update({"constraint_distribution": "MARECO"})
                 case _:
-                    print("unknown constraint_distribution value")
-            print(f"yielding {train_schedule.get('train_name')}")
+                    print(
+                        colored("❌", "red"),
+                        f"unknown constraint_distribution value, ignoring the train '{train_name}'",
+                    )
+                    continue
             yield train_schedule
-        print(f"train {train_name} finished")
-    print("all trains extracted")
     return
 
 
